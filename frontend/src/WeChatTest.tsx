@@ -28,6 +28,7 @@ export default function WeChatTest() {
   const [logs, setLogs] = useState<string[]>([]);
   const pollTimerRef = useRef<any>(null);
   const pollingActiveRef = useRef<string | null>(null);
+  const hasCheckedStatusRef = useRef<boolean>(false);
 
   const addLog = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -36,6 +37,8 @@ export default function WeChatTest() {
 
   // 1. Initial Status Check
   const checkInitialStatus = async () => {
+    if (hasCheckedStatusRef.current) return;
+    hasCheckedStatusRef.current = true;
     try {
       addLog("Checking WeChat login status...");
       const response = await fetch(`${API_BASE_URL}/api/wechat/sessions`);
@@ -52,8 +55,7 @@ export default function WeChatTest() {
         setSessions(data.sessions);
         addLog(`Bot is already logged in as: ${data.user_id}. Loaded ${data.sessions.length} active sessions.`);
       } else {
-        addLog("Bot is not logged in. Initiating QR code fetch...");
-        fetchNewQrCode();
+        addLog("Bot is not logged in. You can generate a QR code to log in.");
       }
     } catch (error: any) {
       addLog(`Error checking initial status: ${error.message}`);
@@ -274,24 +276,33 @@ export default function WeChatTest() {
             )}
           </div>
 
-          {!isLoggedIn && qrImg && (
+          {!isLoggedIn && (
             <div className="card qr-card">
               <h3>📱 Scan to Authenticate</h3>
-              <p className="subtitle">Scan this QR code with the WeChat app to authorize this local bot instance.</p>
-              
-              <div className="qr-container">
-                <img 
-                  src={qrImg.startsWith("http") || qrImg.startsWith("data:") ? qrImg : `${API_BASE_URL}${qrImg}`} 
-                  alt="WeChat Authentication QR Code" 
-                  className="qr-image" 
-                  referrerPolicy="no-referrer"
-                />
-                <div className="qr-status-indicator">
-                  Status: <strong className={`status-${qrStatus}`}>{qrStatus?.toUpperCase()}</strong>
+              {qrImg ? (
+                <>
+                  <p className="subtitle">Scan this QR code with the WeChat app to authorize this local bot instance.</p>
+                  
+                  <div className="qr-container">
+                    <img 
+                      src={qrImg.startsWith("http") || qrImg.startsWith("data:") ? qrImg : `${API_BASE_URL}${qrImg}`} 
+                      alt="WeChat Authentication QR Code" 
+                      className="qr-image" 
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="qr-status-indicator">
+                      Status: <strong className={`status-${qrStatus}`}>{qrStatus?.toUpperCase()}</strong>
+                    </div>
+                  </div>
+                  
+                  <button className="btn btn-primary" onClick={fetchNewQrCode}>Generate Fresh QR Code</button>
+                </>
+              ) : (
+                <div className="qr-placeholder" style={{ textAlign: "center", padding: "20px 0" }}>
+                  <p className="subtitle" style={{ marginBottom: "20px" }}>Click below to retrieve a login QR code from WeChat iLink.</p>
+                  <button className="btn btn-primary" onClick={fetchNewQrCode}>Generate Login QR Code</button>
                 </div>
-              </div>
-              
-              <button className="btn btn-primary" onClick={fetchNewQrCode}>Generate Fresh QR Code</button>
+              )}
             </div>
           )}
 

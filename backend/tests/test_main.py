@@ -21,24 +21,8 @@ def test_get_wechat_qr(mock_fetch):
         assert response.status_code == 200
         data = response.json()
         assert data["qrcode"] == "test_qr_token"
-        assert data["qrcode_img_content"] == "/api/wechat/qr_image?url=https%3A//liteapp.weixin.qq.com/some-image-url"
+        assert data["qrcode_img_content"] == "https://liteapp.weixin.qq.com/some-image-url"
         mock_fetch.assert_called_once_with(bot._base_url)
-
-@patch("httpx.AsyncClient.get")
-def test_get_qr_image_proxy(mock_get):
-    # Setup mock response for httpx.AsyncClient.get
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.content = b"fake_binary_image_content"
-    mock_response.headers = {"content-type": "image/png"}
-    mock_get.return_value = mock_response
-
-    with TestClient(app) as client:
-        response = client.get("/api/wechat/qr_image?url=https%3A//liteapp.weixin.qq.com/some-image-url")
-        assert response.status_code == 200
-        assert response.content == b"fake_binary_image_content"
-        assert response.headers["content-type"] == "image/png"
-        mock_get.assert_called_once()
 
 @patch("app.main.poll_qr_status", new_callable=AsyncMock)
 @patch("app.main._save_credentials_sync")

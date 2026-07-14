@@ -2,8 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import os
 from typing import Optional
-from urllib.parse import quote, unquote
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -67,39 +66,17 @@ class SendMessageRequest(BaseModel):
 def health_check():
     return {"status": "ok"}
 
-@app.get("/api/wechat/qr_image")
-async def get_qr_image(url: str = Query(..., description="The WeChat QR image URL to proxy")):
-    """Proxies the WeChat QR code image to bypass hotlinking protection."""
-    import httpx
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
-            target_url = unquote(url)
-            resp = await client.get(target_url, headers=headers, timeout=10.0)
-            resp.raise_for_status()
-            return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/png"))
-    except Exception as e:
-        print(f">>> [Backend] Error proxying QR image: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to proxy QR image: {str(e)}")
-
 @app.get("/api/wechat/qr")
 async def get_wechat_qr():
-    """Fetches a dynamic WeChat login QR code and returns it, proxied through our backend."""
+    """Fetches a dynamic WeChat login QR code and returns it."""
     print(">>> [Backend] GET /api/wechat/qr request received")
     try:
         print(f">>> [Backend] Calling fetch_qr_code with base_url={bot._base_url}")
         qr = await asyncio.wait_for(fetch_qr_code(bot._base_url), timeout=10.0)
         print(f">>> [Backend] fetch_qr_code success! QR Token: {qr.get('qrcode')}")
-        
-        # Proxy the image URL through our backend to bypass hotlinking protection
-        raw_image_url = qr["qrcode_img_content"]
-        proxied_image_url = f"/api/wechat/qr_image?url={quote(raw_image_url)}"
-        
         return {
             "qrcode": qr["qrcode"],
-            "qrcode_img_content": proxied_image_url,
+            "qrcode_img_content": qr["qrcode_img_content"],
             "is_static": False
         }
     except asyncio.TimeoutError:
