@@ -1,2 +1,9 @@
-venv/\n.pytest_cache/\n__pycache__/\n*.pyc
-*.db\ntest.db\nfamily.db
+venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.db
+test.db
+family.db
+
+.env

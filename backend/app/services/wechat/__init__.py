@@ -1,3 +1,5 @@
+from .client import WeChatBot
+from .types import IncomingMessage
 import httpx
 
 def send_wechat_message(webhook_url: str, message: str) -> bool:
@@ -13,5 +15,7 @@ def send_wechat_message(webhook_url: str, message: str) -> bool:
         response.raise_for_status()
         data = response.json()
         return data.get("errcode") == 0
-    except Exception as e:
+    except Exception:
         return False
+
+__all__ = ["IncomingMessage", "WeChatBot", "send_wechat_message"]
