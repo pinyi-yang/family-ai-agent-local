@@ -4,3 +4,5 @@ pytest
 httpx
 sqlalchemy
 aiohttp
+slack-sdk
+python-dotenv

@@ -6,7 +6,7 @@ This guide walks you through setting up the required API tokens, configuring you
 - **Python 3.9+**
 - **Node.js 18+** (and npm)
 - A **Google Cloud Platform (GCP)** account.
-- A **WeChat Work (Enterprise WeChat)** account.
+- A **Slack Workspace** (with permissions to create a Slack App).
 - A **Google AI Studio** account (for Gemini).
 
 ---
@@ -31,8 +31,8 @@ GOOGLE_REDIRECT_URI="http://localhost:4000/api/auth/callback"
 # --- Gemini API ---
 GEMINI_API_KEY="your-gemini-api-key"
 
-# --- WeChat Work Webhook ---
-WECHAT_WEBHOOK_URL="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your-webhook-key"
+# --- Slack Bot Configuration ---
+SLACK_BOT_TOKEN="xoxb-your-slack-bot-token"
 ```
 
 ---
@@ -54,12 +54,15 @@ WECHAT_WEBHOOK_URL="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your-we
 2. Click **Get API key** and generate a new key.
 3. Copy the key into `GEMINI_API_KEY` in your `.env` file.
 
-### C. WeChat Work Webhook Setup
-1. Download and sign up for **WeChat Work** (企业微信). You can create an organization for free as an individual.
-2. Create a new Group Chat for your family.
-3. Right-click the group chat (on desktop) or go to group settings and select **Add Group Robot** (添加群机器人).
-4. Create a new robot and copy its **Webhook URL**.
-5. Paste this URL into `WECHAT_WEBHOOK_URL` in your `.env` file.
+### C. Slack Bot Token Setup
+1. Go to the [Slack API Portal](https://api.slack.com/apps).
+2. Click **Create New App** -> Select **From scratch**.
+3. Enter your App Name (e.g., "Family AI Agent") and select your target family workspace.
+4. Go to **OAuth & Permissions** under Features.
+5. Scroll down to **Scopes > Bot Token Scopes**, and add the `chat:write` scope (allowing the bot to post messages).
+6. Scroll up and click **Install to Workspace**, then authorize the app.
+7. Copy the generated **Bot User OAuth Token** (starts with `xoxb-`) and paste it as `SLACK_BOT_TOKEN` in your backend `.env` file.
+8. Invite your new bot to any Slack channel you wish to send notifications to (e.g., type `/invite @FamilyAgent` or right-click the channel, select Integrations -> Add an App).
 
 ---
 

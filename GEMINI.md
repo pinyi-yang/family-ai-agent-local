@@ -10,7 +10,7 @@ This project is a **Local Monorepo** designed to run exclusively on the user's l
    - **Framework:** FastAPI
    - **Database:** SQLite with SQLAlchemy ORM
    - **Testing:** `pytest`
-   - **Key Integrations:** Google Workspace API (OAuth loopback), Google GenAI SDK (Gemini), `httpx` (for WeChat Work Webhook).
+   - **Key Integrations:** Google Workspace API (OAuth loopback), Google GenAI SDK (Gemini), `slack-sdk` (for Slack Integration).
    - **Execution:** Runs on `localhost:4000`. Requires activating the virtual environment (`venv`).
 
 2. **Frontend (`/frontend`)**:
@@ -42,7 +42,7 @@ Always use the following commands to run test suites:
 
 ### 4. API & Integration Guidelines
 - **Google OAuth:** Must follow the desktop/loopback IP address flow.
-- **WeChat Notifications:** We strictly use the **WeChat Work (Enterprise) Webhook API**. Do NOT attempt to integrate personal WeChat web/pad protocol wrappers (like Wechaty) due to ban risks.
+- **Slack Notifications:** We use the official Slack WebClient (`slack-sdk`) to securely broadcast updates, event schedules, and daily summaries to a designated Slack channel in the workspace. Ensure `SLACK_BOT_TOKEN` is set in the environment variables.
 - **Gemini Prompts:** Prefer using Gemini's "Structured Outputs" (JSON Schema / Pydantic models) when analyzing emails and extracting calendar events to ensure predictable parsing.
 
 ### 5. Git Workflow

@@ -2,7 +2,7 @@
 
 **Family AI Agent** is a privacy-first, locally-hosted application designed to coordinate, plan, and remind family members about key recurring and seasonal events (e.g., summer camps, health checkups, travel). 
 
-It securely integrates with multiple family members' Google Workspace accounts, utilizes Google Gemini to learn historical scheduling habits, and sends proactive notifications and daily summaries to a shared WeChat Work group.
+It securely integrates with multiple family members' Google Workspace accounts, utilizes Google Gemini to learn historical scheduling habits, and sends proactive notifications and daily summaries to a shared Slack channel.
 
 ---
 
@@ -12,7 +12,7 @@ This project is structured as a **Local Monorepo**:
 - **Backend (`/backend`)**: Built with **Python 3 and FastAPI**. Handles local SQLite database interactions, Google OAuth loops, Gemini AI data extraction, and the APScheduler background tasks.
 - **Frontend (`/frontend`)**: Built with **React and Vite**. Serves as the local dashboard to link Google accounts and view learned family scheduling profiles.
 - **Database**: Local **SQLite** (`family.db`) to store encrypted refresh tokens and analyzed preferences securely on your machine.
-- **Notifications**: Uses an official **WeChat Work Webhook** to safely broadcast updates to a family group without relying on fragile personal WeChat automation tools.
+- **Notifications**: Uses the official **Slack WebClient** to securely publish updates and daily morning digests to a family Slack workspace channel.
 
 ---
 
@@ -21,13 +21,13 @@ Detailed documentation on the app's expectations, design, and execution plans ca
 
 - [App Expectations & Requirements](docs/APP_EXPECTATIONS.md) - The high-level behaviors and features of the agent.
 - [System Design Document](docs/plans/2026-07-12-family-agent-design.md) - The architectural choices and data flow.
-- [Setup & Run Guide](docs/SETUP_GUIDE.md) - Instructions on running the app, getting API keys (Google/Gemini), and setting up the WeChat integration.
+- [Setup & Run Guide](docs/SETUP_GUIDE.md) - Instructions on running the app, getting API keys (Google/Gemini), and setting up the Slack integration.
 
 ---
 
 ## 🚀 Quick Start
 
-To run the application locally, you will need API tokens for Google OAuth, Gemini, and WeChat Work. 
+To run the application locally, you will need API tokens for Google OAuth, Gemini, and Slack. 
 
 **👉 See the [Setup & Run Guide](docs/SETUP_GUIDE.md) for full instructions.**
 

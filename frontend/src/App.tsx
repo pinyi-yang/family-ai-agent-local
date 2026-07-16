@@ -1,9 +1,9 @@
 import { useState } from "react";
-import WeChatTest from "./WeChatTest";
+import SlackTest from "./SlackTest";
 import "./App.css";
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "wechat">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "slack">("dashboard");
 
   return (
     <div className="app-container">
@@ -20,10 +20,10 @@ function App() {
             Dashboard
           </button>
           <button 
-            className={`nav-link ${activeTab === "wechat" ? "active" : ""}`}
-            onClick={() => setActiveTab("wechat")}
+            className={`nav-link ${activeTab === "slack" ? "active" : ""}`}
+            onClick={() => setActiveTab("slack")}
           >
-            WeChat Client Test
+            Slack Integration Test
           </button>
         </nav>
       </header>
@@ -48,17 +48,17 @@ function App() {
               </div>
 
               <div className="card feature-card">
-                <h3>💬 WeChat Integration</h3>
-                <p>WeChat iLink QR authentication client for real-time proactive notices.</p>
-                <button className="btn btn-primary" onClick={() => setActiveTab("wechat")}>
-                  Manage WeChat Bot
+                <h3>💬 Slack Integration</h3>
+                <p>Proactive family notifications and summaries via Slack WebClient.</p>
+                <button className="btn btn-primary" onClick={() => setActiveTab("slack")}>
+                  Manage Slack Bot
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === "wechat" && <WeChatTest />}
+        {activeTab === "slack" && <SlackTest />}
       </main>
     </div>
   );

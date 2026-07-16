@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import Optional
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ class SlackClient:
             raise ValueError("SLACK_BOT_TOKEN environment variable is not set.")
         self.client = WebClient(token=token)
 
-    def send_message(self, target_id: str, text: str) -> dict | None:
+    def send_message(self, target_id: str, text: str) -> Optional[dict]:
         """
         Send a message to a channel or a specific user.
         :param target_id: The Channel ID (e.g., 'C12345') or User ID (e.g., 'U12345').
@@ -34,7 +35,19 @@ class SlackClient:
             logger.error(f"Error sending message to Slack: {e.response['error']}")
             return None
 
-    def reply_to_thread(self, channel_id: str, thread_ts: str, text: str) -> dict | None:
+    def auth_test(self) -> Optional[dict]:
+        """
+        Verify credentials and connection to Slack.
+        :return: The API response data if successful, None otherwise.
+        """
+        try:
+            response = self.client.auth_test()
+            return response.data
+        except SlackApiError as e:
+            logger.error(f"Slack auth test failed: {e.response['error']}")
+            return None
+
+    def reply_to_thread(self, channel_id: str, thread_ts: str, text: str) -> Optional[dict]:
         """
         Reply to a specific message thread.
         :param channel_id: The Channel ID where the original message lives.

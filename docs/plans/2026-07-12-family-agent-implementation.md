@@ -242,72 +242,52 @@ git commit -m "feat(backend): implement sqlite database models for family member
 
 ---
 
-### Task 4: WeChat Work Webhook Integration
+### Task 4: Slack SDK Integration
 
 **Files:**
-- Create: `backend/app/services/wechat.py`
-- Create: `backend/tests/test_wechat.py`
+- Create: `backend/app/services/slack_service.py`
+- Create / Update: `backend/tests/test_main.py`
 
-**Step 1: Write the failing test**
-
-```python
-# backend/tests/test_wechat.py
-import pytest
-from unittest.mock import patch, MagicMock
-from app.services.wechat import send_wechat_message
-
-@patch('httpx.post')
-def test_send_wechat_message(mock_post):
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"errcode": 0, "errmsg": "ok"}
-    mock_post.return_value = mock_response
-
-    result = send_wechat_message("dummy_webhook_url", "Test Message")
-    
-    assert result == True
-    mock_post.assert_called_once()
-    args, kwargs = mock_post.call_args
-    assert kwargs["json"]["msgtype"] == "markdown"
-    assert "Test Message" in kwargs["json"]["markdown"]["content"]
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd backend && python -m pytest tests/test_wechat.py -v`
-Expected: FAIL with "ModuleNotFoundError"
-
-**Step 3: Write minimal implementation**
+**Step 1: Write the Slack service implementation**
 
 ```python
-# backend/app/services/wechat.py
-import httpx
+# backend/app/services/slack_service.py
+import os
+import logging
+from typing import Optional
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
+from dotenv import load_dotenv
 
-def send_wechat_message(webhook_url: str, message: str) -> bool:
-    payload = {
-        "msgtype": "markdown",
-        "markdown": {
-            "content": message
-        }
-    }
-    
-    try:
-        response = httpx.post(webhook_url, json=payload, timeout=10.0)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("errcode") == 0
-    except Exception as e:
-        return False
+# Load environment variables
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+class SlackClient:
+    def __init__(self):
+        token = os.getenv("SLACK_BOT_TOKEN")
+        if not token:
+            raise ValueError("SLACK_BOT_TOKEN environment variable is not set.")
+        self.client = WebClient(token=token)
+
+    def send_message(self, target_id: str, text: str) -> Optional[dict]:
+        try:
+            response = self.client.chat_postMessage(channel=target_id, text=text)
+            return response.data
+        except SlackApiError as e:
+            logger.error(f"Error sending message to Slack: {e.response['error']}")
+            return None
 ```
 
-**Step 4: Run test to verify it passes**
+**Step 2: Run backend tests to verify connectivity & Mock routing**
 
-Run: `cd backend && python -m pytest tests/test_wechat.py -v`
+Run: `cd backend && python -m pytest tests/test_main.py -v`
 Expected: PASS
 
-**Step 5: Commit**
+**Step 3: Commit**
 
 ```bash
-git add backend/app/services/wechat.py backend/tests/test_wechat.py
-git commit -m "feat(backend): add wechat work webhook notification service"
+git add backend/app/services/slack_service.py backend/tests/test_main.py
+git commit -m "feat(backend): add slack sdk integration service"
 ```
