@@ -5,8 +5,10 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables using absolute path to backend/.env
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(os.path.dirname(current_dir))
+load_dotenv(dotenv_path=os.path.join(backend_dir, ".env"))
 
 logger = logging.getLogger(__name__)
 

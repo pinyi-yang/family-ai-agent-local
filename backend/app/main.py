@@ -3,6 +3,12 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Absolute path load of backend/.env
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+load_dotenv(dotenv_path=os.path.join(backend_dir, ".env"))
 
 from app.services.slack_service import SlackClient
 
