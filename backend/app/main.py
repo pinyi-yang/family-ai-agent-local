@@ -317,5 +317,53 @@ def get_google_emails(email: str, db = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to fetch Gmail messages: {str(e)}")
 
 
+@app.get("/api/google/calendar")
+def get_google_calendar(email: str, db = Depends(get_db)):
+    from app.models import FamilyMember
+    member = db.query(FamilyMember).filter(FamilyMember.email == email).first()
+    if not member or not member.google_refresh_token:
+        raise HTTPException(status_code=404, detail="Authenticated family member not found or missing credentials.")
+        
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    
+    creds = Credentials(
+        token=None,
+        refresh_token=member.google_refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret
+    )
+    
+    try:
+        calendar = build("calendar", "v3", credentials=creds)
+        # Get current time to get upcoming events
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        
+        results = calendar.events().list(
+            calendarId="primary",
+            timeMin=now_iso,
+            maxResults=5,
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute()
+        
+        items = results.get("items", [])
+        events_list = []
+        for item in items:
+            events_list.append({
+                "id": item.get("id"),
+                "summary": item.get("summary", "No Title"),
+                "start": item.get("start", {}).get("dateTime") or item.get("start", {}).get("date", ""),
+                "end": item.get("end", {}).get("dateTime") or item.get("end", {}).get("date", ""),
+                "link": item.get("htmlLink", "")
+            })
+        return events_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Google Calendar events: {str(e)}")
+
+
+
 
 

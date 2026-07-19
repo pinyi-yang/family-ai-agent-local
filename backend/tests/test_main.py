@@ -291,6 +291,59 @@ def test_get_google_emails_not_found():
         assert "Authenticated family member not found" in response.json()["detail"]
 
 
+@patch("app.main.build")
+def test_get_google_calendar_success(mock_build):
+    from app.database import SessionLocal
+    from app.models import FamilyMember
+    db = SessionLocal()
+    # Clean up Bob to avoid unique constraints or duplicate test pollution
+    db.query(FamilyMember).filter(FamilyMember.email == "bob-cal@gmail.com").delete()
+    
+    member = FamilyMember(name="Bob Cal", email="bob-cal@gmail.com", google_refresh_token="bob-cal-refresh", is_authenticated=True)
+    db.add(member)
+    db.commit()
+    db.close()
+    
+    # Mocking Calendar API build
+    mock_cal_service = MagicMock()
+    mock_build.return_value = mock_cal_service
+    mock_cal_service.events().list().execute.return_value = {
+        "items": [
+            {
+                "id": "evt1",
+                "summary": "Family Dinner",
+                "start": {"dateTime": "2026-07-20T18:00:00Z"},
+                "end": {"dateTime": "2026-07-20T19:00:00Z"},
+                "htmlLink": "https://calendar.google.com/event?id=123"
+            }
+        ]
+    }
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/calendar?email=bob-cal@gmail.com")
+        assert response.status_code == 200
+        events = response.json()
+        assert len(events) == 1
+        assert events[0]["summary"] == "Family Dinner"
+        assert events[0]["start"] == "2026-07-20T18:00:00Z"
+        assert events[0]["end"] == "2026-07-20T19:00:00Z"
+        assert events[0]["link"] == "https://calendar.google.com/event?id=123"
+
+    # Clean up Bob
+    db = SessionLocal()
+    db.query(FamilyMember).filter(FamilyMember.email == "bob-cal@gmail.com").delete()
+    db.commit()
+    db.close()
+
+
+def test_get_google_calendar_not_found():
+    with TestClient(app) as client:
+        response = client.get("/api/google/calendar?email=nonexistent@gmail.com")
+        assert response.status_code == 404
+        assert "Authenticated family member not found" in response.json()["detail"]
+
+
+
 
 
 
