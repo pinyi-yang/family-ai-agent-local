@@ -263,4 +263,59 @@ def google_callback(code: str, db = Depends(get_db)):
     return RedirectResponse(url="http://localhost:5173/tests?google_success=true")
 
 
+from google.oauth2.credentials import Credentials
+
+@app.get("/api/google/emails")
+def get_google_emails(email: str, db = Depends(get_db)):
+    from app.models import FamilyMember
+    member = db.query(FamilyMember).filter(FamilyMember.email == email).first()
+    if not member or not member.google_refresh_token:
+        raise HTTPException(status_code=404, detail="Authenticated family member not found or missing credentials.")
+        
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    
+    creds = Credentials(
+        token=None,  # Will trigger refresh automatically if needed
+        refresh_token=member.google_refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret
+    )
+    
+    try:
+        gmail = build("gmail", "v1", credentials=creds)
+        results = gmail.users().messages().list(userId="me", maxResults=5).execute()
+        messages = results.get("messages", [])
+        
+        emails_list = []
+        for msg in messages:
+            msg_data = gmail.users().messages().get(userId="me", id=msg["id"], format="full").execute()
+            snippet = msg_data.get("snippet", "")
+            headers = msg_data.get("payload", {}).get("headers", [])
+            
+            subject = "No Subject"
+            sender = "Unknown"
+            date = ""
+            for h in headers:
+                if h["name"].lower() == "subject":
+                    subject = h["value"]
+                elif h["name"].lower() == "from":
+                    sender = h["value"]
+                elif h["name"].lower() == "date":
+                    date = h["value"]
+                    
+            emails_list.append({
+                "id": msg["id"],
+                "subject": subject,
+                "from": sender,
+                "date": date,
+                "snippet": snippet
+            })
+        return emails_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Gmail messages: {str(e)}")
+
+
+
 

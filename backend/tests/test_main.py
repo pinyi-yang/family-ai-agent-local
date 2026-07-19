@@ -243,6 +243,55 @@ def test_google_callback_success(mock_build, mock_from_client_config):
             db.close()
 
 
+@patch("app.main.build")
+def test_get_google_emails_success(mock_build):
+    from app.database import SessionLocal
+    from app.models import FamilyMember
+    db = SessionLocal()
+    # Clean up first to avoid duplicates
+    db.query(FamilyMember).filter(FamilyMember.email == "bob@gmail.com").delete()
+    
+    member = FamilyMember(name="Bob", email="bob@gmail.com", google_refresh_token="bob-refresh", is_authenticated=True)
+    db.add(member)
+    db.commit()
+    db.close()
+    
+    # Mocking Gmail API build
+    mock_gmail_service = MagicMock()
+    mock_build.return_value = mock_gmail_service
+    mock_gmail_service.users().messages().list().execute.return_value = {
+        "messages": [{"id": "msg1"}, {"id": "msg2"}]
+    }
+    mock_gmail_service.users().messages().get().execute.side_effect = [
+        {"id": "msg1", "snippet": "Hey there!", "payload": {"headers": [{"name": "Subject", "value": "Hello"}, {"name": "From", "value": "Alice"}, {"name": "Date", "value": "Mon, 20 Jul 2026 10:00:00 GMT"}]}},
+        {"id": "msg2", "snippet": "Meeting tomorrow", "payload": {"headers": [{"name": "Subject", "value": "Quick Sync"}, {"name": "From", "value": "Work"}, {"name": "Date", "value": "Mon, 20 Jul 2026 11:00:00 GMT"}]}}
+    ]
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/emails?email=bob@gmail.com")
+        assert response.status_code == 200
+        emails = response.json()
+        assert len(emails) == 2
+        assert emails[0]["subject"] == "Hello"
+        assert emails[0]["snippet"] == "Hey there!"
+        assert emails[0]["from"] == "Alice"
+        assert emails[0]["date"] == "Mon, 20 Jul 2026 10:00:00 GMT"
+
+    # Database cleanup
+    db = SessionLocal()
+    db.query(FamilyMember).filter(FamilyMember.email == "bob@gmail.com").delete()
+    db.commit()
+    db.close()
+
+
+def test_get_google_emails_not_found():
+    with TestClient(app) as client:
+        response = client.get("/api/google/emails?email=nonexistent@gmail.com")
+        assert response.status_code == 404
+        assert "Authenticated family member not found" in response.json()["detail"]
+
+
+
 
 
 
