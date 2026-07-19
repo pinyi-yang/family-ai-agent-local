@@ -118,3 +118,62 @@ def test_db_tables_exist():
     assert "family_members" in inspector.get_table_names()
     assert "family_preferences" in inspector.get_table_names()
 
+
+@patch.dict(os.environ, {}, clear=True)
+def test_get_google_status_not_configured():
+    with TestClient(app) as client:
+        response = client.get("/api/google/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_configured"] is False
+        assert data["authenticated_accounts"] == []
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "mock-client-id",
+    "GOOGLE_CLIENT_SECRET": "mock-client-secret",
+    "GOOGLE_REDIRECT_URI": "mock-redirect-uri"
+})
+def test_get_google_status_configured_no_accounts():
+    with TestClient(app) as client:
+        response = client.get("/api/google/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_configured"] is True
+        assert data["authenticated_accounts"] == []
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "mock-client-id",
+    "GOOGLE_CLIENT_SECRET": "mock-client-secret",
+    "GOOGLE_REDIRECT_URI": "mock-redirect-uri"
+})
+def test_get_google_status_configured_with_accounts():
+    from app.models import FamilyMember
+    from app.database import get_db
+
+    mock_db = MagicMock()
+    mock_member = FamilyMember(
+        name="John Doe",
+        email="john@example.com",
+        google_refresh_token="mock-token",
+        is_authenticated=True
+    )
+    mock_db.query.return_value.filter.return_value.all.return_value = [mock_member]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/google/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_configured"] is True
+            assert len(data["authenticated_accounts"]) == 1
+            assert data["authenticated_accounts"][0]["email"] == "john@example.com"
+            assert data["authenticated_accounts"][0]["name"] == "John Doe"
+    finally:
+        app.dependency_overrides.clear()
+
+
+

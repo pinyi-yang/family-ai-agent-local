@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -11,7 +11,7 @@ backend_dir = os.path.dirname(current_dir)
 load_dotenv(dotenv_path=os.path.join(backend_dir, ".env"))
 
 from app.services.slack_service import SlackClient
-from app.database import Base, engine
+from app.database import Base, engine, get_db
 import app.models
 
 # Auto-create SQLite database tables on startup
@@ -129,3 +129,27 @@ async def send_slack_msg(req: SlackMessageRequest):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Exception while sending message: {str(e)}")
+
+
+@app.get("/api/google/status")
+def get_google_status(db = Depends(get_db)):
+    """Checks Google Workspace integration status and returns authenticated accounts."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    is_configured = bool(client_id and client_secret and redirect_uri)
+    
+    accounts = []
+    if is_configured:
+        from app.models import FamilyMember
+        members = db.query(FamilyMember).filter(
+            FamilyMember.google_refresh_token.isnot(None),
+            FamilyMember.is_authenticated == True
+        ).all()
+        accounts = [{"email": m.email, "name": m.name} for m in members]
+        
+    return {
+        "is_configured": is_configured,
+        "authenticated_accounts": accounts
+    }
+
