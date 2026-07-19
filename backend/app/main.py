@@ -11,6 +11,11 @@ backend_dir = os.path.dirname(current_dir)
 load_dotenv(dotenv_path=os.path.join(backend_dir, ".env"))
 
 from app.services.slack_service import SlackClient
+from app.database import Base, engine
+import app.models
+
+# Auto-create SQLite database tables on startup
+Base.metadata.create_all(bind=engine)
 
 # Initialize Slack Client gracefully
 slack_client = None

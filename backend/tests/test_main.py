@@ -108,3 +108,13 @@ def test_send_slack_msg_failed_response(mock_client):
         response = client.post("/api/slack/send", json=payload)
         assert response.status_code == 400
         assert "Failed to send message to Slack" in response.json()["detail"]
+
+
+def test_db_tables_exist():
+    # Verify tables are created on database engine
+    from app.database import engine
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    assert "family_members" in inspector.get_table_names()
+    assert "family_preferences" in inspector.get_table_names()
+
