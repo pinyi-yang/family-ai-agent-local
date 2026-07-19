@@ -1,9 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SlackTest from "./SlackTest";
+import GoogleTest from "./GoogleTest";
 import "./App.css";
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "slack">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "tests">("dashboard");
+  const [activeSubTab, setActiveSubTab] = useState<"slack" | "google">("slack");
+
+  // Keep 'tests' tab active and auto-select Google if returning from callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google_success") === "true") {
+      setActiveTab("tests");
+      setActiveSubTab("google");
+    }
+  }, []);
 
   return (
     <div className="app-container">
@@ -20,10 +31,10 @@ function App() {
             Dashboard
           </button>
           <button 
-            className={`nav-link ${activeTab === "slack" ? "active" : ""}`}
-            onClick={() => setActiveTab("slack")}
+            className={`nav-link ${activeTab === "tests" ? "active" : ""}`}
+            onClick={() => setActiveTab("tests")}
           >
-            Slack Integration Test
+            Integration Tests
           </button>
         </nav>
       </header>
@@ -44,13 +55,15 @@ function App() {
               <div className="card feature-card">
                 <h3>📅 Google Workspace</h3>
                 <p>Authenticates dynamically and syncs calendar schedules automatically.</p>
-                <div className="badge">Configured</div>
+                <button className="btn btn-primary" onClick={() => { setActiveTab("tests"); setActiveSubTab("google"); }}>
+                  Manage Google Auth
+                </button>
               </div>
 
               <div className="card feature-card">
                 <h3>💬 Slack Integration</h3>
                 <p>Proactive family notifications and summaries via Slack WebClient.</p>
-                <button className="btn btn-primary" onClick={() => setActiveTab("slack")}>
+                <button className="btn btn-primary" onClick={() => { setActiveTab("tests"); setActiveSubTab("slack"); }}>
                   Manage Slack Bot
                 </button>
               </div>
@@ -58,7 +71,29 @@ function App() {
           </div>
         )}
 
-        {activeTab === "slack" && <SlackTest />}
+        {activeTab === "tests" && (
+          <div className="tests-container">
+            <div className="tests-header" style={{ marginBottom: "24px", borderBottom: "1px solid var(--border)", paddingBottom: "12px", display: "flex", gap: "12px" }}>
+              <button
+                className={`nav-link ${activeSubTab === "slack" ? "active" : ""}`}
+                style={{ fontSize: "14px", padding: "6px 14px" }}
+                onClick={() => setActiveSubTab("slack")}
+              >
+                💬 Slack Bot Test
+              </button>
+              <button
+                className={`nav-link ${activeSubTab === "google" ? "active" : ""}`}
+                style={{ fontSize: "14px", padding: "6px 14px" }}
+                onClick={() => setActiveSubTab("google")}
+              >
+                📅 Google Workspace Test
+              </button>
+            </div>
+
+            {activeSubTab === "slack" && <SlackTest />}
+            {activeSubTab === "google" && <GoogleTest />}
+          </div>
+        )}
       </main>
     </div>
   );
