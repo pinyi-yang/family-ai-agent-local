@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const API_BASE_URL = "http://localhost:4000";
 
@@ -46,10 +46,10 @@ export default function GoogleTest() {
   const [logs, setLogs] = useState<string[]>([]);
   const hasCheckedStatusRef = useRef<boolean>(false);
 
-  const addLog = (msg: string) => {
+  const addLog = useCallback((msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [`[${timestamp}] ${msg}`, ...prev]);
-  };
+  }, []);
 
   // Check URL params for success redirect
   useEffect(() => {
@@ -62,9 +62,9 @@ export default function GoogleTest() {
       const newUrl = window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, newUrl);
     }
-  }, []);
+  }, [addLog]);
 
-  const checkGoogleStatus = async () => {
+  const checkGoogleStatus = useCallback(async () => {
     setChecking(true);
     setStatusError(null);
     try {
@@ -79,9 +79,7 @@ export default function GoogleTest() {
       
       if (data.authenticated_accounts && data.authenticated_accounts.length > 0) {
         // Default to first email if none currently selected
-        if (!selectedEmail) {
-          setSelectedEmail(data.authenticated_accounts[0].email);
-        }
+        setSelectedEmail((current) => current || data.authenticated_accounts[0].email);
         addLog(`Found ${data.authenticated_accounts.length} authenticated Google account(s).`);
       } else if (data.is_configured) {
         addLog("Google integration is configured but no accounts are authenticated yet.");
@@ -94,7 +92,7 @@ export default function GoogleTest() {
     } finally {
       setChecking(false);
     }
-  };
+  }, [addLog]);
 
   // Check on mount
   useEffect(() => {
@@ -102,7 +100,7 @@ export default function GoogleTest() {
       hasCheckedStatusRef.current = true;
       checkGoogleStatus();
     }
-  }, [selectedEmail]);
+  }, [checkGoogleStatus]);
 
   // Connect Google account (redirect)
   const handleConnectAccount = () => {
@@ -111,7 +109,7 @@ export default function GoogleTest() {
   };
 
   // Fetch Emails
-  const fetchEmails = async () => {
+  const fetchEmails = useCallback(async () => {
     if (!selectedEmail) return;
     setLoadingEmails(true);
     setEmailsError(null);
@@ -131,10 +129,10 @@ export default function GoogleTest() {
     } finally {
       setLoadingEmails(false);
     }
-  };
+  }, [selectedEmail, addLog]);
 
   // Fetch Calendar
-  const fetchCalendar = async () => {
+  const fetchCalendar = useCallback(async () => {
     if (!selectedEmail) return;
     setLoadingEvents(true);
     setEventsError(null);
@@ -154,7 +152,7 @@ export default function GoogleTest() {
     } finally {
       setLoadingEvents(false);
     }
-  };
+  }, [selectedEmail, addLog]);
 
   // Trigger automated fetches when selected email changes
   useEffect(() => {
@@ -165,7 +163,7 @@ export default function GoogleTest() {
       setEmails([]);
       setEvents([]);
     }
-  }, [selectedEmail]);
+  }, [selectedEmail, fetchEmails, fetchCalendar]);
 
   return (
     <div className="wechat-test-container">
@@ -217,6 +215,11 @@ export default function GoogleTest() {
                 <p style={{ fontSize: "13px", marginTop: "10px", marginBottom: 0 }}>
                   Google Client credentials are missing from your backend <code>.env</code>.
                 </p>
+              </div>
+            )}
+            {statusError && (
+              <div className="result-alert error" style={{ marginTop: "12px" }}>
+                Status Error: {statusError}
               </div>
             )}
           </div>
