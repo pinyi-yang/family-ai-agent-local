@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
 
 # Absolute path load of backend/.env
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -191,5 +192,75 @@ def google_login():
         prompt="consent"
     )
     return RedirectResponse(url=auth_url)
+
+
+@app.get("/api/google/callback")
+def google_callback(code: str, db = Depends(get_db)):
+    """Receives OAuth callback, exchanges authorization code, and registers/updates user."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [redirect_uri]
+        }
+    }
+    
+    scopes = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/calendar.readonly"
+    ]
+    
+    flow = Flow.from_client_config(client_config, scopes=scopes)
+    flow.redirect_uri = redirect_uri
+    
+    try:
+        flow.fetch_token(code=code)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch token: {str(e)}")
+        
+    credentials = flow.credentials
+    
+    try:
+        # Build userinfo service to get email
+        userinfo_service = build("oauth2", "v2", credentials=credentials)
+        user_info = userinfo_service.userinfo().get().execute()
+        email = user_info.get("email")
+        name = user_info.get("name", "Google User")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve user info: {str(e)}")
+        
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not retrieve email from Google")
+        
+    from app.models import FamilyMember
+    member = db.query(FamilyMember).filter(FamilyMember.email == email).first()
+    
+    if member:
+        if credentials.refresh_token:
+            member.google_refresh_token = credentials.refresh_token
+        member.name = name
+        member.is_authenticated = True
+    else:
+        member = FamilyMember(
+            name=name,
+            email=email,
+            google_refresh_token=credentials.refresh_token,
+            is_authenticated=True
+        )
+        db.add(member)
+        
+    db.commit()
+    
+    return RedirectResponse(url="http://localhost:5173/tests?google_success=true")
+
 
 
