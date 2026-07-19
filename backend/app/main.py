@@ -2,8 +2,10 @@ import os
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from google_auth_oauthlib.flow import Flow
 
 # Absolute path load of backend/.env
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -152,4 +154,42 @@ def get_google_status(db = Depends(get_db)):
         "is_configured": is_configured,
         "authenticated_accounts": accounts
     }
+
+
+@app.get("/api/google/login")
+def google_login():
+    """Generates the Google OAuth authorization URL and redirects the user."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    if not (client_id and client_secret and redirect_uri):
+        raise HTTPException(status_code=400, detail="Google OAuth is not configured in .env")
+        
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [redirect_uri]
+        }
+    }
+    
+    scopes = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/calendar.readonly"
+    ]
+    
+    flow = Flow.from_client_config(client_config, scopes=scopes)
+    flow.redirect_uri = redirect_uri
+    
+    auth_url, _ = flow.authorization_url(
+        access_type="offline",
+        prompt="consent"
+    )
+    return RedirectResponse(url=auth_url)
+
 

@@ -176,4 +176,30 @@ def test_get_google_status_configured_with_accounts():
         app.dependency_overrides.clear()
 
 
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "fake-id",
+    "GOOGLE_CLIENT_SECRET": "fake-secret",
+    "GOOGLE_REDIRECT_URI": "http://localhost:4000/api/google/callback"
+})
+@patch("app.main.Flow.from_client_config")
+def test_google_login_redirect(mock_from_client_config):
+    mock_flow = MagicMock()
+    mock_flow.authorization_url.return_value = ("https://google-consent-page.com", "state")
+    mock_from_client_config.return_value = mock_flow
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/login", follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == "https://google-consent-page.com"
+
+
+@patch.dict(os.environ, {}, clear=True)
+def test_google_login_not_configured():
+    with TestClient(app) as client:
+        response = client.get("/api/google/login")
+        assert response.status_code == 400
+        assert "Google OAuth is not configured in .env" in response.json()["detail"]
+
+
+
 
