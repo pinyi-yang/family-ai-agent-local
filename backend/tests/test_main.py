@@ -108,3 +108,292 @@ def test_send_slack_msg_failed_response(mock_client):
         response = client.post("/api/slack/send", json=payload)
         assert response.status_code == 400
         assert "Failed to send message to Slack" in response.json()["detail"]
+
+
+def test_db_tables_exist():
+    # Verify tables are created on database engine
+    from app.database import engine
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    assert "family_members" in inspector.get_table_names()
+    assert "family_preferences" in inspector.get_table_names()
+
+
+@patch.dict(os.environ, {}, clear=True)
+def test_get_google_status_not_configured():
+    with TestClient(app) as client:
+        response = client.get("/api/google/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_configured"] is False
+        assert data["authenticated_accounts"] == []
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "mock-client-id",
+    "GOOGLE_CLIENT_SECRET": "mock-client-secret",
+    "GOOGLE_REDIRECT_URI": "mock-redirect-uri"
+})
+def test_get_google_status_configured_no_accounts():
+    with TestClient(app) as client:
+        response = client.get("/api/google/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_configured"] is True
+        assert data["authenticated_accounts"] == []
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "mock-client-id",
+    "GOOGLE_CLIENT_SECRET": "mock-client-secret",
+    "GOOGLE_REDIRECT_URI": "mock-redirect-uri"
+})
+def test_get_google_status_configured_with_accounts():
+    from app.models import FamilyMember
+    from app.database import get_db
+
+    mock_db = MagicMock()
+    mock_member = FamilyMember(
+        name="John Doe",
+        email="john@example.com",
+        google_refresh_token="mock-token",
+        is_authenticated=True
+    )
+    mock_db.query.return_value.filter.return_value.all.return_value = [mock_member]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/google/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_configured"] is True
+            assert len(data["authenticated_accounts"]) == 1
+            assert data["authenticated_accounts"][0]["email"] == "john@example.com"
+            assert data["authenticated_accounts"][0]["name"] == "John Doe"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "fake-id",
+    "GOOGLE_CLIENT_SECRET": "fake-secret",
+    "GOOGLE_REDIRECT_URI": "http://localhost:4000/api/google/callback"
+})
+@patch("app.main.Flow.from_client_config")
+def test_google_login_redirect(mock_from_client_config):
+    mock_flow = MagicMock()
+    mock_flow.authorization_url.return_value = ("https://google-consent-page.com", "state")
+    mock_flow.code_verifier = "mocked-code-verifier"
+    mock_from_client_config.return_value = mock_flow
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/login", follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == "https://google-consent-page.com"
+        assert "google_code_verifier=mocked-code-verifier" in response.headers.get("set-cookie", "")
+
+
+@patch.dict(os.environ, {}, clear=True)
+def test_google_login_not_configured():
+    with TestClient(app) as client:
+        response = client.get("/api/google/login")
+        assert response.status_code == 400
+        assert "Google OAuth is not configured in .env" in response.json()["detail"]
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "fake-id",
+    "GOOGLE_CLIENT_SECRET": "fake-secret",
+    "GOOGLE_REDIRECT_URI": "http://localhost:4000/api/google/callback"
+})
+@patch("app.main.Flow.from_client_config")
+@patch("app.main.build")
+def test_google_callback_success(mock_build, mock_from_client_config):
+    # Mocking OAuth exchange
+    mock_flow = MagicMock()
+    mock_credentials = MagicMock()
+    mock_credentials.refresh_token = "fake-refresh-token"
+    mock_credentials.token = "fake-access-token"
+    mock_flow.credentials = mock_credentials
+    mock_from_client_config.return_value = mock_flow
+    
+    # Mocking userinfo service
+    mock_userinfo_service = MagicMock()
+    mock_build.return_value = mock_userinfo_service
+    mock_userinfo_service.userinfo().get().execute.return_value = {
+        "email": "testuser@gmail.com",
+        "name": "Test User"
+    }
+    
+    try:
+        with TestClient(app) as client:
+            client.cookies.set("google_code_verifier", "fake-verifier")
+            response = client.get("/api/google/callback?code=fake-code", follow_redirects=False)
+            assert response.status_code == 307
+            assert "google_success=true" in response.headers["location"]
+            assert mock_flow.code_verifier == "fake-verifier"
+    finally:
+        from app.database import SessionLocal
+        from app.models import FamilyMember
+        db = SessionLocal()
+        try:
+            member = db.query(FamilyMember).filter(FamilyMember.email == "testuser@gmail.com").first()
+            if member:
+                db.delete(member)
+                db.commit()
+        finally:
+            db.close()
+
+
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "fake-id",
+    "GOOGLE_CLIENT_SECRET": "fake-secret",
+    "GOOGLE_REDIRECT_URI": "http://localhost:4000/api/auth/callback"
+})
+@patch("app.main.Flow.from_client_config")
+@patch("app.main.build")
+def test_google_callback_alt_path_success(mock_build, mock_from_client_config):
+    # Mocking OAuth exchange
+    mock_flow = MagicMock()
+    mock_credentials = MagicMock()
+    mock_credentials.refresh_token = "fake-refresh-token"
+    mock_credentials.token = "fake-access-token"
+    mock_flow.credentials = mock_credentials
+    mock_from_client_config.return_value = mock_flow
+    
+    # Mocking userinfo service
+    mock_userinfo_service = MagicMock()
+    mock_build.return_value = mock_userinfo_service
+    mock_userinfo_service.userinfo().get().execute.return_value = {
+        "email": "testuser-alt@gmail.com",
+        "name": "Test User Alt"
+    }
+    
+    try:
+        with TestClient(app) as client:
+            client.cookies.set("google_code_verifier", "fake-verifier-alt")
+            response = client.get("/api/auth/callback?code=fake-code", follow_redirects=False)
+            assert response.status_code == 307
+            assert "google_success=true" in response.headers["location"]
+            assert mock_flow.code_verifier == "fake-verifier-alt"
+    finally:
+        from app.database import SessionLocal
+        from app.models import FamilyMember
+        db = SessionLocal()
+        try:
+            member = db.query(FamilyMember).filter(FamilyMember.email == "testuser-alt@gmail.com").first()
+            if member:
+                db.delete(member)
+                db.commit()
+        finally:
+            db.close()
+
+
+@patch("app.main.build")
+def test_get_google_emails_success(mock_build):
+    from app.database import SessionLocal
+    from app.models import FamilyMember
+    db = SessionLocal()
+    # Clean up first to avoid duplicates
+    db.query(FamilyMember).filter(FamilyMember.email == "bob@gmail.com").delete()
+    
+    member = FamilyMember(name="Bob", email="bob@gmail.com", google_refresh_token="bob-refresh", is_authenticated=True)
+    db.add(member)
+    db.commit()
+    db.close()
+    
+    # Mocking Gmail API build
+    mock_gmail_service = MagicMock()
+    mock_build.return_value = mock_gmail_service
+    mock_gmail_service.users().messages().list().execute.return_value = {
+        "messages": [{"id": "msg1"}, {"id": "msg2"}]
+    }
+    mock_gmail_service.users().messages().get().execute.side_effect = [
+        {"id": "msg1", "snippet": "Hey there!", "payload": {"headers": [{"name": "Subject", "value": "Hello"}, {"name": "From", "value": "Alice"}, {"name": "Date", "value": "Mon, 20 Jul 2026 10:00:00 GMT"}]}},
+        {"id": "msg2", "snippet": "Meeting tomorrow", "payload": {"headers": [{"name": "Subject", "value": "Quick Sync"}, {"name": "From", "value": "Work"}, {"name": "Date", "value": "Mon, 20 Jul 2026 11:00:00 GMT"}]}}
+    ]
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/emails?email=bob@gmail.com")
+        assert response.status_code == 200
+        emails = response.json()
+        assert len(emails) == 2
+        assert emails[0]["subject"] == "Hello"
+        assert emails[0]["snippet"] == "Hey there!"
+        assert emails[0]["from"] == "Alice"
+        assert emails[0]["date"] == "Mon, 20 Jul 2026 10:00:00 GMT"
+
+    # Database cleanup
+    db = SessionLocal()
+    db.query(FamilyMember).filter(FamilyMember.email == "bob@gmail.com").delete()
+    db.commit()
+    db.close()
+
+
+def test_get_google_emails_not_found():
+    with TestClient(app) as client:
+        response = client.get("/api/google/emails?email=nonexistent@gmail.com")
+        assert response.status_code == 404
+        assert "Authenticated family member not found" in response.json()["detail"]
+
+
+@patch("app.main.build")
+def test_get_google_calendar_success(mock_build):
+    from app.database import SessionLocal
+    from app.models import FamilyMember
+    db = SessionLocal()
+    # Clean up Bob to avoid unique constraints or duplicate test pollution
+    db.query(FamilyMember).filter(FamilyMember.email == "bob-cal@gmail.com").delete()
+    
+    member = FamilyMember(name="Bob Cal", email="bob-cal@gmail.com", google_refresh_token="bob-cal-refresh", is_authenticated=True)
+    db.add(member)
+    db.commit()
+    db.close()
+    
+    # Mocking Calendar API build
+    mock_cal_service = MagicMock()
+    mock_build.return_value = mock_cal_service
+    mock_cal_service.events().list().execute.return_value = {
+        "items": [
+            {
+                "id": "evt1",
+                "summary": "Family Dinner",
+                "start": {"dateTime": "2026-07-20T18:00:00Z"},
+                "end": {"dateTime": "2026-07-20T19:00:00Z"},
+                "htmlLink": "https://calendar.google.com/event?id=123"
+            }
+        ]
+    }
+    
+    with TestClient(app) as client:
+        response = client.get("/api/google/calendar?email=bob-cal@gmail.com")
+        assert response.status_code == 200
+        events = response.json()
+        assert len(events) == 1
+        assert events[0]["summary"] == "Family Dinner"
+        assert events[0]["start"] == "2026-07-20T18:00:00Z"
+        assert events[0]["end"] == "2026-07-20T19:00:00Z"
+        assert events[0]["link"] == "https://calendar.google.com/event?id=123"
+
+    # Clean up Bob
+    db = SessionLocal()
+    db.query(FamilyMember).filter(FamilyMember.email == "bob-cal@gmail.com").delete()
+    db.commit()
+    db.close()
+
+
+def test_get_google_calendar_not_found():
+    with TestClient(app) as client:
+        response = client.get("/api/google/calendar?email=nonexistent@gmail.com")
+        assert response.status_code == 404
+        assert "Authenticated family member not found" in response.json()["detail"]
+
+
+
+
+
+
+
+
