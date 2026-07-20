@@ -243,6 +243,48 @@ def test_google_callback_success(mock_build, mock_from_client_config):
             db.close()
 
 
+@patch.dict(os.environ, {
+    "GOOGLE_CLIENT_ID": "fake-id",
+    "GOOGLE_CLIENT_SECRET": "fake-secret",
+    "GOOGLE_REDIRECT_URI": "http://localhost:4000/api/auth/callback"
+})
+@patch("app.main.Flow.from_client_config")
+@patch("app.main.build")
+def test_google_callback_alt_path_success(mock_build, mock_from_client_config):
+    # Mocking OAuth exchange
+    mock_flow = MagicMock()
+    mock_credentials = MagicMock()
+    mock_credentials.refresh_token = "fake-refresh-token"
+    mock_credentials.token = "fake-access-token"
+    mock_flow.credentials = mock_credentials
+    mock_from_client_config.return_value = mock_flow
+    
+    # Mocking userinfo service
+    mock_userinfo_service = MagicMock()
+    mock_build.return_value = mock_userinfo_service
+    mock_userinfo_service.userinfo().get().execute.return_value = {
+        "email": "testuser-alt@gmail.com",
+        "name": "Test User Alt"
+    }
+    
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/auth/callback?code=fake-code", follow_redirects=False)
+            assert response.status_code == 307
+            assert "google_success=true" in response.headers["location"]
+    finally:
+        from app.database import SessionLocal
+        from app.models import FamilyMember
+        db = SessionLocal()
+        try:
+            member = db.query(FamilyMember).filter(FamilyMember.email == "testuser-alt@gmail.com").first()
+            if member:
+                db.delete(member)
+                db.commit()
+        finally:
+            db.close()
+
+
 @patch("app.main.build")
 def test_get_google_emails_success(mock_build):
     from app.database import SessionLocal

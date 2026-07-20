@@ -195,6 +195,7 @@ def google_login():
 
 
 @app.get("/api/google/callback")
+@app.get("/api/auth/callback")
 def google_callback(code: str, db = Depends(get_db)):
     """Receives OAuth callback, exchanges authorization code, and registers/updates user."""
     client_id = os.getenv("GOOGLE_CLIENT_ID")
