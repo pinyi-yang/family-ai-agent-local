@@ -102,10 +102,10 @@ export default function GoogleTest() {
     }
   }, [checkGoogleStatus]);
 
-  // Connect Google account (redirect)
+  // Connect Google account (open in new tab)
   const handleConnectAccount = () => {
-    addLog("Redirecting to Google login authorization endpoint...");
-    window.location.href = `${API_BASE_URL}/api/google/login`;
+    addLog("Opening Google login authorization in a new tab...");
+    window.open(`${API_BASE_URL}/api/google/login`, "_blank");
   };
 
   // Fetch Emails
