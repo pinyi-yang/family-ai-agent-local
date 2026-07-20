@@ -185,12 +185,14 @@ def test_get_google_status_configured_with_accounts():
 def test_google_login_redirect(mock_from_client_config):
     mock_flow = MagicMock()
     mock_flow.authorization_url.return_value = ("https://google-consent-page.com", "state")
+    mock_flow.code_verifier = "mocked-code-verifier"
     mock_from_client_config.return_value = mock_flow
     
     with TestClient(app) as client:
         response = client.get("/api/google/login", follow_redirects=False)
         assert response.status_code == 307
         assert response.headers["location"] == "https://google-consent-page.com"
+        assert "google_code_verifier=mocked-code-verifier" in response.headers.get("set-cookie", "")
 
 
 @patch.dict(os.environ, {}, clear=True)
@@ -227,9 +229,11 @@ def test_google_callback_success(mock_build, mock_from_client_config):
     
     try:
         with TestClient(app) as client:
+            client.cookies.set("google_code_verifier", "fake-verifier")
             response = client.get("/api/google/callback?code=fake-code", follow_redirects=False)
             assert response.status_code == 307
             assert "google_success=true" in response.headers["location"]
+            assert mock_flow.code_verifier == "fake-verifier"
     finally:
         from app.database import SessionLocal
         from app.models import FamilyMember
@@ -269,9 +273,11 @@ def test_google_callback_alt_path_success(mock_build, mock_from_client_config):
     
     try:
         with TestClient(app) as client:
+            client.cookies.set("google_code_verifier", "fake-verifier-alt")
             response = client.get("/api/auth/callback?code=fake-code", follow_redirects=False)
             assert response.status_code == 307
             assert "google_success=true" in response.headers["location"]
+            assert mock_flow.code_verifier == "fake-verifier-alt"
     finally:
         from app.database import SessionLocal
         from app.models import FamilyMember

@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -191,12 +191,21 @@ def google_login():
         access_type="offline",
         prompt="consent"
     )
-    return RedirectResponse(url=auth_url)
+    
+    response = RedirectResponse(url=auth_url)
+    response.set_cookie(
+        key="google_code_verifier",
+        value=flow.code_verifier,
+        httponly=True,
+        max_age=600,
+        samesite="lax"
+    )
+    return response
 
 
 @app.get("/api/google/callback")
 @app.get("/api/auth/callback")
-def google_callback(code: str, db = Depends(get_db)):
+def google_callback(code: str, db = Depends(get_db), google_code_verifier: Optional[str] = Cookie(None)):
     """Receives OAuth callback, exchanges authorization code, and registers/updates user."""
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -223,6 +232,9 @@ def google_callback(code: str, db = Depends(get_db)):
     flow = Flow.from_client_config(client_config, scopes=scopes)
     flow.redirect_uri = redirect_uri
     
+    if google_code_verifier:
+        flow.code_verifier = google_code_verifier
+        
     try:
         flow.fetch_token(code=code)
     except Exception as e:
